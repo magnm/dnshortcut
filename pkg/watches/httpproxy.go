@@ -30,3 +30,14 @@ func (w *HTTPProxy) GetHostname(obj interface{}) string {
 
 	return proxy.Spec.VirtualHost.Fqdn
 }
+
+func (w *HTTPProxy) GetServiceIp(obj interface{}) string {
+	_, ok := obj.(*projectcontour.HTTPProxy)
+	if !ok {
+		slog.Error("failed to convert object to httpproxy", "obj", obj)
+		return ""
+	}
+
+	// TODO
+	return ""
+}

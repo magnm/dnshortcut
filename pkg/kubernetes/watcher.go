@@ -4,16 +4,20 @@ import (
 	"log/slog"
 	"time"
 
+	"github.com/magnm/dnshortcut/pkg/coredns"
 	"github.com/magnm/dnshortcut/pkg/watches"
+	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/dynamic/dynamicinformer"
 	"k8s.io/client-go/informers"
+	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/cache"
 )
 
 type Watcher struct {
 	Watches        []watches.Watched
-	factory        informers.SharedInformerFactory
+	configFactory  informers.SharedInformerFactory
 	dynamicFactory dynamicinformer.DynamicSharedInformerFactory
 }
 
@@ -35,21 +39,65 @@ func (w *Watcher) Watch() {
 		panic(err)
 	}
 
-	w.factory = informers.NewSharedInformerFactory(clientset, time.Second*30)
-	w.dynamicFactory = dynamicinformer.NewDynamicSharedInformerFactory(dynamicClient, time.Second*30)
-
-	w.setupInformers()
+	w.dynamicFactory = dynamicinformer.NewDynamicSharedInformerFactory(dynamicClient, time.Minute*5)
 
 	stop := make(chan struct{})
 	defer close(stop)
-	w.factory.Start(stop)
+
+	w.setupConfigWatcher(clientset)
+	// Wait for configWatcher to be synced before starting resource informers
+	w.configFactory.WaitForCacheSync(stop)
+
+	w.setupIngressInformers()
+
+	w.configFactory.Start(stop)
 	w.dynamicFactory.Start(stop)
 	for {
 		time.Sleep(time.Second)
 	}
 }
 
-func (w *Watcher) setupInformers() {
+func (w *Watcher) setupConfigWatcher(clientset *kubernetes.Clientset) {
+	w.configFactory = informers.NewSharedInformerFactoryWithOptions(
+		clientset,
+		time.Minute*5,
+		informers.WithNamespace("kube-system"),
+		informers.WithTweakListOptions(
+			func(lo *metav1.ListOptions) {
+				lo.LabelSelector = "app=coredns"
+			},
+		),
+	)
+	informer := w.configFactory.Core().V1().ConfigMaps().Informer()
+	informer.AddEventHandler(cache.ResourceEventHandlerFuncs{
+		AddFunc: func(obj interface{}) {
+			slog.Info("configmap added", "obj", obj)
+			configMap := obj.(*corev1.ConfigMap)
+			if configMap.Name == coredns.ConfigMapName {
+				slog.Info("coredns configmap added", "obj", obj)
+				coredns.Corefile = string(configMap.Data["Corefile"])
+				coredns.IngressHostFile = string(configMap.Data["IngressHostFile"])
+				coredns.ScheduleReconcile()
+			}
+		},
+		DeleteFunc: func(obj interface{}) {
+			slog.Info("configmap deleted", "obj", obj)
+			// Unhandled, this isn't really expected, and doesn't matter
+		},
+		UpdateFunc: func(oldObj, newObj interface{}) {
+			slog.Info("configmap updated", "oldObj", oldObj, "newObj", newObj)
+			configMap := newObj.(*corev1.ConfigMap)
+			if configMap.Name == coredns.ConfigMapName {
+				slog.Info("coredns configmap updated", "oldObj", oldObj, "newObj", newObj)
+				coredns.Corefile = string(configMap.Data["Corefile"])
+				coredns.IngressHostFile = string(configMap.Data["IngressHostFile"])
+				coredns.ScheduleReconcile()
+			}
+		},
+	})
+}
+
+func (w *Watcher) setupIngressInformers() {
 	for _, watched := range w.Watches {
 		informer := w.dynamicFactory.ForResource(schema.GroupVersionResource{
 			Group:    watched.APIGroup(),
@@ -63,6 +111,8 @@ func (w *Watcher) setupInformers() {
 				hostname := watched.GetHostname(obj)
 				if hostname != "" {
 					slog.Info("hostname added", "resource", watched.APIResource(), "hostname", hostname)
+					serviceIp := watched.GetServiceIp(obj)
+					coredns.AddIngress(hostname, serviceIp)
 				}
 			},
 			DeleteFunc: func(obj interface{}) {
@@ -70,6 +120,7 @@ func (w *Watcher) setupInformers() {
 				hostname := watched.GetHostname(obj)
 				if hostname != "" {
 					slog.Info("hostname deleted", "resource", watched.APIResource(), "hostname", hostname)
+					coredns.RemoveIngress(hostname)
 				}
 			},
 			UpdateFunc: func(oldObj, newObj interface{}) {
@@ -78,6 +129,9 @@ func (w *Watcher) setupInformers() {
 				newHostname := watched.GetHostname(newObj)
 				if oldHostname != newHostname {
 					slog.Info("hostname updated", "resource", watched.APIResource(), "oldHostname", oldHostname, "newHostname", newHostname)
+					coredns.RemoveIngress(oldHostname)
+					serviceIp := watched.GetServiceIp(newObj)
+					coredns.AddIngress(newHostname, serviceIp)
 				}
 			},
 		})

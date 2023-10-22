@@ -6,4 +6,5 @@ type Watched interface {
 	APIResource() string
 
 	GetHostname(obj interface{}) string
+	GetServiceIp(obj interface{}) string
 }
