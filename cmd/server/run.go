@@ -1,8 +1,8 @@
 package server
 
-import "github.com/magnm/dnshortcut/pkg/kubernetes"
+import "github.com/magnm/dnshortcut/pkg/watcher"
 
 func Run() {
-	watcher := kubernetes.NewWatcher()
+	watcher := watcher.NewWatcher()
 	watcher.Watch()
 }

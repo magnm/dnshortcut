@@ -1,17 +1,18 @@
-package kubernetes
+package watcher
 
 import (
 	"log/slog"
 	"time"
 
 	"github.com/magnm/dnshortcut/pkg/coredns"
+	"github.com/magnm/dnshortcut/pkg/kubernetes"
 	"github.com/magnm/dnshortcut/pkg/watches"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/dynamic/dynamicinformer"
 	"k8s.io/client-go/informers"
-	"k8s.io/client-go/kubernetes"
+	k8s "k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/cache"
 )
 
@@ -30,11 +31,11 @@ func NewWatcher() *Watcher {
 }
 
 func (w *Watcher) Watch() {
-	clientset, err := GetKubernetesClient()
+	kubeClient, err := kubernetes.GetKubernetesClient()
 	if err != nil {
 		panic(err)
 	}
-	dynamicClient, err := GetKubernetesDynamicClient()
+	dynamicClient, err := kubernetes.GetKubernetesDynamicClient()
 	if err != nil {
 		panic(err)
 	}
@@ -44,7 +45,7 @@ func (w *Watcher) Watch() {
 	stop := make(chan struct{})
 	defer close(stop)
 
-	w.setupConfigWatcher(clientset)
+	w.setupConfigWatcher(kubeClient)
 	// Wait for configWatcher to be synced before starting resource informers
 	w.configFactory.WaitForCacheSync(stop)
 
@@ -57,7 +58,7 @@ func (w *Watcher) Watch() {
 	}
 }
 
-func (w *Watcher) setupConfigWatcher(clientset *kubernetes.Clientset) {
+func (w *Watcher) setupConfigWatcher(clientset *k8s.Clientset) {
 	w.configFactory = informers.NewSharedInformerFactoryWithOptions(
 		clientset,
 		time.Minute*5,
@@ -73,10 +74,9 @@ func (w *Watcher) setupConfigWatcher(clientset *kubernetes.Clientset) {
 		AddFunc: func(obj interface{}) {
 			slog.Info("configmap added", "obj", obj)
 			configMap := obj.(*corev1.ConfigMap)
-			if configMap.Name == coredns.ConfigMapName {
+			if configMap.Name == coredns.CustomConfigMapName {
 				slog.Info("coredns configmap added", "obj", obj)
-				coredns.Corefile = string(configMap.Data["Corefile"])
-				coredns.IngressHostFile = string(configMap.Data["IngressHostFile"])
+				coredns.IngressHostFile = string(configMap.Data[coredns.CustomHostfileName])
 				coredns.ScheduleReconcile()
 			}
 		},
@@ -87,10 +87,9 @@ func (w *Watcher) setupConfigWatcher(clientset *kubernetes.Clientset) {
 		UpdateFunc: func(oldObj, newObj interface{}) {
 			slog.Info("configmap updated", "oldObj", oldObj, "newObj", newObj)
 			configMap := newObj.(*corev1.ConfigMap)
-			if configMap.Name == coredns.ConfigMapName {
+			if configMap.Name == coredns.CustomConfigMapName {
 				slog.Info("coredns configmap updated", "oldObj", oldObj, "newObj", newObj)
-				coredns.Corefile = string(configMap.Data["Corefile"])
-				coredns.IngressHostFile = string(configMap.Data["IngressHostFile"])
+				coredns.IngressHostFile = string(configMap.Data[coredns.CustomHostfileName])
 				coredns.ScheduleReconcile()
 			}
 		},

@@ -7,6 +7,7 @@ import (
 )
 
 type HTTPProxy struct {
+	ingressIp string
 }
 
 func (w *HTTPProxy) APIGroup() string {
@@ -36,6 +37,10 @@ func (w *HTTPProxy) GetServiceIp(obj interface{}) string {
 	if !ok {
 		slog.Error("failed to convert object to httpproxy", "obj", obj)
 		return ""
+	}
+
+	if w.ingressIp != "" {
+		return w.ingressIp
 	}
 
 	// TODO
