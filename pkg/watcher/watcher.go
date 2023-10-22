@@ -2,6 +2,7 @@ package watcher
 
 import (
 	"log/slog"
+	"sync"
 	"time"
 
 	"github.com/magnm/dnshortcut/pkg/coredns"
@@ -51,11 +52,14 @@ func (w *Watcher) Watch() {
 
 	w.setupIngressInformers()
 
+	wg := &sync.WaitGroup{}
+
 	w.configFactory.Start(stop)
 	w.dynamicFactory.Start(stop)
-	for {
-		time.Sleep(time.Second)
-	}
+
+	wg.Add(1)
+	slog.Info("watcher started")
+	wg.Wait()
 }
 
 func (w *Watcher) setupConfigWatcher(clientset *k8s.Clientset) {
