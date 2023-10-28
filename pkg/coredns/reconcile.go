@@ -49,6 +49,7 @@ func delayedReconcile() {
 }
 
 func reconcile() {
+	slog.Info("reconciling corefile", "hosts", hosts)
 	// Read ingressHostFile,
 	// and make sure it's consistent against
 	// our known ingresses
@@ -74,10 +75,14 @@ func reconcile() {
 }
 
 func applyCustomConfigMap(data map[string]string) {
+	slog.Info("applying custom configmap", "data", data)
 	client, err := kubernetes.GetKubernetesClient()
 	if err != nil {
-		slog.Error("failed to get kubernetes client", "error", err)
+		slog.Error("failed to get kubernetes client", "err", err)
 	}
 
-	kubernetes.ApplyConfigMap(client, CustomConfigMapName, CustomConfigMapNamespace, data)
+	err = kubernetes.ApplyConfigMap(client, CustomConfigMapName, CustomConfigMapNamespace, data)
+	if err != nil {
+		slog.Error("failed to apply custom configmap", "err", err)
+	}
 }

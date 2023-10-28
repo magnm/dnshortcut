@@ -10,6 +10,7 @@ import (
 	"github.com/magnm/dnshortcut/pkg/watches"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/dynamic/dynamicinformer"
 	"k8s.io/client-go/informers"
@@ -102,6 +103,7 @@ func (w *Watcher) setupConfigWatcher(clientset *k8s.Clientset) {
 
 func (w *Watcher) setupIngressInformers() {
 	for _, watched := range w.Watches {
+		slog.Info("setting up informer for", "resource", watched.APIResource())
 		informer := w.dynamicFactory.ForResource(schema.GroupVersionResource{
 			Group:    watched.APIGroup(),
 			Version:  watched.APIVersion(),
@@ -110,30 +112,43 @@ func (w *Watcher) setupIngressInformers() {
 
 		informer.AddEventHandler(cache.ResourceEventHandlerFuncs{
 			AddFunc: func(obj interface{}) {
-				slog.Info("object added", "resource", watched.APIResource(), "obj", obj)
-				hostname := watched.GetHostname(obj)
+				slog.Info("watched resource added", "resource", watched.APIResource(), "obj", obj)
+				u := obj.(*unstructured.Unstructured)
+				hostname := watched.GetHostname(u)
 				if hostname != "" {
-					slog.Info("hostname added", "resource", watched.APIResource(), "hostname", hostname)
-					serviceIp := watched.GetServiceIp(obj)
+					serviceIp := watched.GetServiceIp(u)
+					if serviceIp == "" {
+						slog.Error("can't add hostname without ip", "resource", watched.APIResource(), "hostname", hostname)
+						return
+					}
+					slog.Info("adding hostname", "resource", watched.APIResource(), "hostname", hostname, "ip", serviceIp)
 					coredns.AddIngress(hostname, serviceIp)
 				}
 			},
 			DeleteFunc: func(obj interface{}) {
-				slog.Info("object deleted", "resource", watched.APIResource(), "obj", obj)
-				hostname := watched.GetHostname(obj)
+				slog.Info("watched resource deleted", "resource", watched.APIResource(), "obj", obj)
+				u := obj.(*unstructured.Unstructured)
+				hostname := watched.GetHostname(u)
 				if hostname != "" {
-					slog.Info("hostname deleted", "resource", watched.APIResource(), "hostname", hostname)
+					slog.Info("removing hostname", "resource", watched.APIResource(), "hostname", hostname)
 					coredns.RemoveIngress(hostname)
 				}
 			},
 			UpdateFunc: func(oldObj, newObj interface{}) {
-				slog.Info("object updated", "resource", watched.APIResource(), "oldObj", oldObj, "newObj", newObj)
-				oldHostname := watched.GetHostname(oldObj)
-				newHostname := watched.GetHostname(newObj)
+				slog.Info("watched resource updated", "resource", watched.APIResource(), "oldObj", oldObj, "newObj", newObj)
+				oldU := oldObj.(*unstructured.Unstructured)
+				newU := newObj.(*unstructured.Unstructured)
+				oldHostname := watched.GetHostname(oldU)
+				newHostname := watched.GetHostname(newU)
 				if oldHostname != newHostname {
-					slog.Info("hostname updated", "resource", watched.APIResource(), "oldHostname", oldHostname, "newHostname", newHostname)
+					slog.Info("removing hostname", "resource", watched.APIResource(), "oldHostname", oldHostname, "newHostname", newHostname)
 					coredns.RemoveIngress(oldHostname)
-					serviceIp := watched.GetServiceIp(newObj)
+					serviceIp := watched.GetServiceIp(newU)
+					if serviceIp == "" {
+						slog.Error("can't add hostname without ip", "resource", watched.APIResource(), "hostname", newHostname)
+						return
+					}
+					slog.Info("addinghostname", "resource", watched.APIResource(), "hostname", newHostname, "ip", serviceIp)
 					coredns.AddIngress(newHostname, serviceIp)
 				}
 			},
