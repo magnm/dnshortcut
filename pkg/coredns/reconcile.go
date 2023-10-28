@@ -59,9 +59,9 @@ func reconcile() {
 	// Build a new IngressHostFile from hosts
 	// If this file differs from the one we have stored from before,
 	// that means it's time to update!
-	newIngressHostFile := generateHostfile(hosts)
-	if newIngressHostFile != IngressHostFile {
-		IngressHostFile = newIngressHostFile
+	newZonefiles := generateZonefiles(hosts)
+	if newZonefiles != IngressHostFile {
+		IngressHostFile = newZonefiles
 		needsHostfileUpdate = true
 	}
 
