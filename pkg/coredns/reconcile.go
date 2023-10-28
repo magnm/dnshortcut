@@ -71,6 +71,8 @@ func reconcile() {
 			CustomHostfileName: IngressHostFile,
 		}
 		applyCustomConfigMap(data)
+	} else {
+		slog.Info("corefile is up to date")
 	}
 }
 

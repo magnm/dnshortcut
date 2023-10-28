@@ -1,6 +1,7 @@
 package watcher
 
 import (
+	"fmt"
 	"log/slog"
 	"sync"
 	"time"
@@ -74,7 +75,7 @@ func (w *Watcher) setupConfigWatcher(clientset *k8s.Clientset) {
 		informers.WithNamespace("kube-system"),
 		informers.WithTweakListOptions(
 			func(lo *metav1.ListOptions) {
-				lo.LabelSelector = "app=coredns"
+				lo.FieldSelector = fmt.Sprintf("metadata.name=%s", coredns.CustomConfigMapName)
 			},
 		),
 	)
