@@ -1,0 +1,20 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: dnshortcut
+  namespace: kube-system
+  labels:
+    app: dnshortcut
+spec:
+  selector:
+    matchLabels:
+      app: dnshortcut
+  template:
+    metadata:
+      labels:
+        app: dnshortcut
+    spec:
+      serviceAccountName: dnshortcut
+      containers:
+      - name: dnshortcut
+        image: ghcr.io/magnm/dnshortcut

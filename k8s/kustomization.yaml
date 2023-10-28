@@ -1,0 +1,5 @@
+resources:
+  - deployment.yaml
+  - cluster-role.yaml
+  - service-account.yaml
+  - ns-role.yaml
