@@ -21,6 +21,7 @@ import (
 type Watcher struct {
 	Watches        []watches.Watched
 	configFactory  informers.SharedInformerFactory
+	serviceFactory informers.SharedInformerFactory
 	dynamicFactory dynamicinformer.DynamicSharedInformerFactory
 }
 
@@ -48,14 +49,17 @@ func (w *Watcher) Watch() {
 	defer close(stop)
 
 	w.setupConfigWatcher(kubeClient)
-	// Wait for configWatcher to be synced before starting resource informers
-	w.configFactory.WaitForCacheSync(stop)
-
+	w.setupServiceWatcher(kubeClient)
 	w.setupIngressInformers()
 
 	wg := &sync.WaitGroup{}
 
 	w.configFactory.Start(stop)
+	w.serviceFactory.Start(stop)
+	// Wait for configWatcher to be synced before starting dynamic resource informers
+	w.configFactory.WaitForCacheSync(stop)
+	w.serviceFactory.WaitForCacheSync(stop)
+
 	w.dynamicFactory.Start(stop)
 
 	wg.Add(1)
@@ -96,6 +100,37 @@ func (w *Watcher) setupConfigWatcher(clientset *k8s.Clientset) {
 				slog.Info("coredns configmap updated", "oldObj", oldObj, "newObj", newObj)
 				coredns.IngressHostFile = string(configMap.Data[coredns.CustomHostfileName])
 				coredns.ScheduleReconcile()
+			}
+		},
+	})
+}
+
+func (w *Watcher) setupServiceWatcher(clientset *k8s.Clientset) {
+	w.serviceFactory = informers.NewSharedInformerFactoryWithOptions(clientset, time.Minute*5)
+	informer := w.serviceFactory.Core().V1().Services().Informer()
+	informer.AddEventHandler(cache.ResourceEventHandlerFuncs{
+		AddFunc: func(obj interface{}) {
+			service := obj.(*corev1.Service)
+			slog.Info("service added", "name", service.GetName(), "namespace", service.GetNamespace())
+			if service.Spec.Type == "LoadBalancer" && len(service.Status.LoadBalancer.Ingress) > 0 {
+				externalIp := service.Status.LoadBalancer.Ingress[0].IP
+				clusterIp := service.Spec.ClusterIP
+				slog.Info("caching loadbalancer service",
+					"name", service.GetName(),
+					"namespace", service.GetNamespace(),
+					"externalIp", externalIp,
+					"clusterIp", clusterIp)
+				watches.ServiceCache[externalIp] = clusterIp
+			}
+		},
+		UpdateFunc: func(oldObj, newObj interface{}) {
+			service := newObj.(*corev1.Service)
+			slog.Info("service updated", "name", service.GetName(), "namespace", service.GetNamespace())
+			if service.Spec.Type == "LoadBalancer" && len(service.Status.LoadBalancer.Ingress) > 0 {
+				externalIp := service.Status.LoadBalancer.Ingress[0].IP
+				clusterIp := service.Spec.ClusterIP
+				slog.Info("caching loadbalancer service", "externalIp", externalIp, "clusterIp", clusterIp)
+				watches.ServiceCache[externalIp] = clusterIp
 			}
 		},
 	})

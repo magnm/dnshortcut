@@ -10,3 +10,5 @@ type Watched interface {
 	GetHostname(obj *unstructured.Unstructured) string
 	GetServiceIp(obj *unstructured.Unstructured) string
 }
+
+var ServiceCache = map[string]string{}
