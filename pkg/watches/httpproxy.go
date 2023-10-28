@@ -6,6 +6,10 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 
+func init() {
+	RegisterWatched(&HTTPProxy{})
+}
+
 type HTTPProxy struct{}
 
 func (w *HTTPProxy) APIGroup() string {

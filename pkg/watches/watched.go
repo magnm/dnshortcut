@@ -11,4 +11,10 @@ type Watched interface {
 	GetServiceIp(obj *unstructured.Unstructured) string
 }
 
+var Watches = []Watched{}
+
 var ServiceCache = map[string]string{}
+
+func RegisterWatched(watched Watched) {
+	Watches = append(Watches, watched)
+}

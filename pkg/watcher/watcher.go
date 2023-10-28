@@ -26,15 +26,7 @@ type Watcher struct {
 	dynamicFactory dynamicinformer.DynamicSharedInformerFactory
 }
 
-func NewWatcher() *Watcher {
-	return &Watcher{
-		Watches: []watches.Watched{
-			&watches.HTTPProxy{},
-		},
-	}
-}
-
-func (w *Watcher) Watch() {
+func Watch() {
 	kubeClient, err := kubernetes.GetKubernetesClient()
 	if err != nil {
 		panic(err)
@@ -42,6 +34,10 @@ func (w *Watcher) Watch() {
 	dynamicClient, err := kubernetes.GetKubernetesDynamicClient()
 	if err != nil {
 		panic(err)
+	}
+
+	w := &Watcher{
+		Watches: watches.Watches,
 	}
 
 	w.dynamicFactory = dynamicinformer.NewDynamicSharedInformerFactory(dynamicClient, time.Minute*5)
