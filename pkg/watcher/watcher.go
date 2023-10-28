@@ -78,7 +78,6 @@ func (w *Watcher) setupConfigWatcher(clientset *k8s.Clientset) {
 	informer := w.configFactory.Core().V1().ConfigMaps().Informer()
 	informer.AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc: func(obj interface{}) {
-			slog.Info("configmap added", "obj", obj)
 			configMap := obj.(*corev1.ConfigMap)
 			if configMap.Name == coredns.CustomConfigMapName {
 				slog.Info("coredns configmap added", "obj", obj)
@@ -91,7 +90,6 @@ func (w *Watcher) setupConfigWatcher(clientset *k8s.Clientset) {
 			// Unhandled, this isn't really expected, and doesn't matter
 		},
 		UpdateFunc: func(oldObj, newObj interface{}) {
-			slog.Info("configmap updated", "oldObj", oldObj, "newObj", newObj)
 			configMap := newObj.(*corev1.ConfigMap)
 			if configMap.Name == coredns.CustomConfigMapName {
 				slog.Info("coredns configmap updated", "oldObj", oldObj, "newObj", newObj)
