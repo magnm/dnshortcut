@@ -80,19 +80,19 @@ func (w *Watcher) setupConfigWatcher(clientset *k8s.Clientset) {
 		AddFunc: func(obj interface{}) {
 			configMap := obj.(*corev1.ConfigMap)
 			if configMap.Name == coredns.CustomConfigMapName {
-				slog.Info("coredns configmap added", "obj", obj)
+				slog.Debug("coredns configmap added", "obj", obj)
 				coredns.IngressHostFile = string(configMap.Data[coredns.CustomHostfileName])
 				coredns.ScheduleReconcile()
 			}
 		},
 		DeleteFunc: func(obj interface{}) {
-			slog.Info("configmap deleted", "obj", obj)
+			slog.Debug("configmap deleted", "obj", obj)
 			// Unhandled, this isn't really expected, and doesn't matter
 		},
 		UpdateFunc: func(oldObj, newObj interface{}) {
 			configMap := newObj.(*corev1.ConfigMap)
 			if configMap.Name == coredns.CustomConfigMapName {
-				slog.Info("coredns configmap updated", "oldObj", oldObj, "newObj", newObj)
+				slog.Debug("coredns configmap updated", "oldObj", oldObj, "newObj", newObj)
 				coredns.IngressHostFile = string(configMap.Data[coredns.CustomHostfileName])
 				coredns.ScheduleReconcile()
 			}
@@ -106,7 +106,7 @@ func (w *Watcher) setupServiceWatcher(clientset *k8s.Clientset) {
 	informer.AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc: func(obj interface{}) {
 			service := obj.(*corev1.Service)
-			slog.Info("service added", "name", service.GetName(), "namespace", service.GetNamespace())
+			slog.Debug("service added", "name", service.GetName(), "namespace", service.GetNamespace())
 			if service.Spec.Type == "LoadBalancer" && len(service.Status.LoadBalancer.Ingress) > 0 {
 				externalIp := service.Status.LoadBalancer.Ingress[0].IP
 				clusterIp := service.Spec.ClusterIP
@@ -120,7 +120,7 @@ func (w *Watcher) setupServiceWatcher(clientset *k8s.Clientset) {
 		},
 		UpdateFunc: func(oldObj, newObj interface{}) {
 			service := newObj.(*corev1.Service)
-			slog.Info("service updated", "name", service.GetName(), "namespace", service.GetNamespace())
+			slog.Debug("service updated", "name", service.GetName(), "namespace", service.GetNamespace())
 			if service.Spec.Type == "LoadBalancer" && len(service.Status.LoadBalancer.Ingress) > 0 {
 				externalIp := service.Status.LoadBalancer.Ingress[0].IP
 				clusterIp := service.Spec.ClusterIP
@@ -142,13 +142,16 @@ func (w *Watcher) setupIngressInformers() {
 
 		informer.AddEventHandler(cache.ResourceEventHandlerFuncs{
 			AddFunc: func(obj interface{}) {
-				slog.Info("watched resource added", "resource", watched.APIResource(), "obj", obj)
+				slog.Debug("watched resource added", "resource", watched.APIResource(), "obj", obj)
 				u := obj.(*unstructured.Unstructured)
 				hostname := watched.GetHostname(u)
 				if hostname != "" {
 					serviceIp := watched.GetServiceIp(u)
 					if serviceIp == "" {
-						slog.Error("can't add hostname without ip", "resource", watched.APIResource(), "hostname", hostname)
+						slog.Error("can't add hostname without ip",
+							"resource", watched.APIResource(),
+							"name", u.GetName(),
+							"hostname", hostname)
 						return
 					}
 					slog.Info("adding hostname", "resource", watched.APIResource(), "hostname", hostname, "ip", serviceIp)
@@ -156,7 +159,7 @@ func (w *Watcher) setupIngressInformers() {
 				}
 			},
 			DeleteFunc: func(obj interface{}) {
-				slog.Info("watched resource deleted", "resource", watched.APIResource(), "obj", obj)
+				slog.Debug("watched resource deleted", "resource", watched.APIResource(), "obj", obj)
 				u := obj.(*unstructured.Unstructured)
 				hostname := watched.GetHostname(u)
 				if hostname != "" {
@@ -165,7 +168,7 @@ func (w *Watcher) setupIngressInformers() {
 				}
 			},
 			UpdateFunc: func(oldObj, newObj interface{}) {
-				slog.Info("watched resource updated", "resource", watched.APIResource(), "oldObj", oldObj, "newObj", newObj)
+				slog.Debug("watched resource updated", "resource", watched.APIResource(), "oldObj", oldObj, "newObj", newObj)
 				oldU := oldObj.(*unstructured.Unstructured)
 				newU := newObj.(*unstructured.Unstructured)
 				oldHostname := watched.GetHostname(oldU)
