@@ -17,4 +17,4 @@ spec:
       serviceAccountName: dnshortcut
       containers:
       - name: dnshortcut
-        image: ghcr.io/magnm/dnshortcut
+        image: ghcr.io/magnm/dnshortcut:v1
