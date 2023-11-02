@@ -178,7 +178,7 @@ func (w *Watcher) setupIngressInformers() {
 					slog.Error("can't add hostname without ip", "resource", watched.APIResource(), "hostname", newHostname)
 					return
 				}
-				slog.Info("updating hostname", "resource", watched.APIResource(), "oldHostname", oldHostname, "newHostname", newHostname)
+				slog.Info("updating hostname", "resource", watched.APIResource(), "oldHostname", oldHostname, "newHostname", newHostname, "ip", serviceIp)
 				coredns.RemoveIngress(oldHostname)
 				coredns.AddIngress(newHostname, serviceIp)
 			},
