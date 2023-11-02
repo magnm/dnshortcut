@@ -18,3 +18,4 @@ spec:
       containers:
       - name: dnshortcut
         image: ghcr.io/magnm/dnshortcut:v1
+        imagePullPolicy: Always
