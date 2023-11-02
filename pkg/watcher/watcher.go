@@ -173,17 +173,14 @@ func (w *Watcher) setupIngressInformers() {
 				newU := newObj.(*unstructured.Unstructured)
 				oldHostname := watched.GetHostname(oldU)
 				newHostname := watched.GetHostname(newU)
-				if oldHostname != newHostname {
-					slog.Info("removing hostname", "resource", watched.APIResource(), "oldHostname", oldHostname, "newHostname", newHostname)
-					coredns.RemoveIngress(oldHostname)
-					serviceIp := watched.GetServiceIp(newU)
-					if serviceIp == "" {
-						slog.Error("can't add hostname without ip", "resource", watched.APIResource(), "hostname", newHostname)
-						return
-					}
-					slog.Info("addinghostname", "resource", watched.APIResource(), "hostname", newHostname, "ip", serviceIp)
-					coredns.AddIngress(newHostname, serviceIp)
+				serviceIp := watched.GetServiceIp(newU)
+				if serviceIp == "" {
+					slog.Error("can't add hostname without ip", "resource", watched.APIResource(), "hostname", newHostname)
+					return
 				}
+				slog.Info("updating hostname", "resource", watched.APIResource(), "oldHostname", oldHostname, "newHostname", newHostname)
+				coredns.RemoveIngress(oldHostname)
+				coredns.AddIngress(newHostname, serviceIp)
 			},
 		})
 	}
