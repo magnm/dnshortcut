@@ -1,6 +1,11 @@
 package coredns
 
-import "strings"
+import (
+	"slices"
+	"strings"
+
+	"golang.org/x/exp/maps"
+)
 
 const CustomConfigMapName = "coredns-custom"
 const CustomConfigMapNamespace = "kube-system"
@@ -21,11 +26,16 @@ func generateZonefiles(hosts map[string]string) string {
 
 	newFile := strings.Builder{}
 
-	for baseDomain, hostnames := range baseDomains {
+	sortedBases := maps.Keys(baseDomains)
+	slices.Sort(sortedBases)
+
+	for _, baseDomain := range sortedBases {
 		newFile.WriteString(baseDomain)
 		newFile.WriteString(":53 {\n")
 		newFile.WriteString("    errors\n")
 		newFile.WriteString("    hosts {\n")
+		hostnames := baseDomains[baseDomain]
+		slices.Sort(hostnames)
 		for _, hostname := range hostnames {
 			ip := hosts[hostname]
 			newFile.WriteString("        ")
